@@ -6,11 +6,13 @@ import time
 import datetime
 import torch.optim as optim
 import math
+import wandb
 from lib import dataloader as dl
 import lib.utils as utils
 from lib.utils import count_parameters
 import datasets
 from datasets.mnist  import getLoader
+from datasets.cifar10 import getLoader as getLoaderCIFAR # Modified
 from src.plotter import *
 from src.OTFlowProblem import *
 from src.Autoencoder import *
@@ -33,7 +35,7 @@ else: # if no gpu on platform, assume debugging on a local cpu
 
 parser = argparse.ArgumentParser('OT-Flow')
 parser.add_argument(
-    '--data', choices=['mnist'], type=str, default='mnist'
+    '--data', choices=['mnist', 'cifar10'], type=str, default='mnist'
 )
 parser.add_argument("--nt"    , type=int, default=8, help="number of time steps")
 parser.add_argument("--nt_val", type=int, default=16, help="number of time steps for validation")
@@ -52,11 +54,13 @@ parser.add_argument('--batch_size' , type=int, default=def_batch)
 parser.add_argument('--val_batch_size', type=int, default=def_batch)
 parser.add_argument('--resume'     , type=str, default=None)
 parser.add_argument('--autoenc'    , type=str, default=None)
-parser.add_argument('--save'       , type=str, default='experiments/cnf/large')
+parser.add_argument('--save'       , type=str, default='experiments/cnf/MNIST')
 parser.add_argument('--viz_freq'   , type=int, default=def_viz_freq)
 parser.add_argument('--val_freq'   , type=int, default=def_val_freq)
 parser.add_argument('--gpu'        , type=int, default=0)
 parser.add_argument('--conditional', type=int, default=-1) # -1 means unconditioned
+parser.add_argument('--convex'     , type=bool, default=False)
+parser.add_argument('--wandb_log'  , type=bool, default=False)
 args = parser.parse_args()
 
 args.alph = [float(item) for item in args.alph.split(',')]
@@ -110,7 +114,7 @@ if __name__ == '__main__':
     nTh = 2
     m   = args.m
 
-    net = Phi(nTh=nTh, m=m, d=d, alph=args.alph) # the phi aka the value function
+    net = Phi(nTh=nTh, m=m, d=d, alph=args.alph, convex=args.convex) # the phi aka the value function
     net = net.to(prec).to(device)
 
     if args.val_freq == 0:
@@ -127,6 +131,7 @@ if __name__ == '__main__':
     logger.info("Number of trainable parameters: {}".format(count_parameters(net)))
     logger.info("-------------------------")
     logger.info(str(optim)) # optimizer info
+    logger.info("convex={}, wandb logging={}".format(args.convex, args.wandb_log)) # optimizer info
     logger.info("data={:} batch_size={:} gpu={:}".format(args.data, args.batch_size, args.gpu))
     logger.info("maxIters={:} val_freq={:} viz_freq={:}".format(args.niters, args.val_freq, args.viz_freq))
     logger.info("saveLocation = {:}".format(args.save))
@@ -151,6 +156,13 @@ if __name__ == '__main__':
 
     net.train()
     itr = 1
+    if args.wandb_log:
+        print("Wandb enabled")
+        wandb.init(project="score_hjr", config={
+            "sampling step": args.nt,
+            # Add any other hyperparameters as needed
+        })
+
     while itr < args.niters:
         # train
         for data in train_loader:
@@ -174,9 +186,12 @@ if __name__ == '__main__':
 
             log_message = (
                 '{:05d}  {:6.3f}  {:7.1e}   {:9.3e}  {:9.3e}  {:9.3e}  {:9.3e} '.format(
-                    itr, timeMeter.val, optim.param_groups[0]['lr'], loss, costs[0], costs[1], costs[2]
+                    itr, timeMeter.val, optim.param_groups[0]['lr'], loss, args.alph[0]*costs[0], args.alph[1]*costs[1], args.alph[2]*costs[2]
                 )
             )
+
+            if args.wandb_log:
+                wandb.log({"epoch": itr, "loss": loss, "sm_loss": costs[0], "hj_loss": costs[2]})
 
             if torch.isnan(loss):
                 logger.info(log_message)
@@ -224,14 +239,14 @@ if __name__ == '__main__':
                     if valLossMeter.avg < best_loss:
                         logger.info('saving new best')
                         best_loss = valLossMeter.avg
-                        best_costs = [  valAlphMeterL.avg, valAlphMeterC.avg, valAlphMeterR.avg ]
+                        best_costs = [  valAlphMeterL.avg, 0, valAlphMeterR.avg ]
                         utils.makedirs(args.save)
                         best_params = net.state_dict()
                         torch.save({
                             'args': args,
                             'state_dict': best_params,
                             'autoencoder': autoEnc.state_dict(),
-                        }, os.path.join(args.save, start_time + '_{:}_alph{:}_{:}_m{:}_checkpt.pth'.format(args.data,int(net.alph[1]),int(net.alph[2]),m)))
+                        }, os.path.join(args.save, start_time + '_{:}_alph{:}_{:}_m{:}_{}step_checkpt.pth'.format(args.data,int(net.alph[1]),int(net.alph[2]),m, args.nt)))
                     net.train()
 
             logger.info(log_message) # print iteration

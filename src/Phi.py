@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import copy
 import math
+import torch.nn.functional as F
 
 def antiderivTanh(x): # activation function aka the antiderivative of tanh
     return torch.abs(x) + torch.log(1+torch.exp(-2.0*torch.abs(x)))
@@ -47,13 +48,68 @@ class ResNN(nn.Module):
 
         for i in range(1,self.nTh):
             x = x + self.h * self.act(self.layers[i](x))
-
         return x
 
 
+class Linear_pos_kernel(nn.Module):
+    def __init__(self, in_features, out_features, bias=True):
+        super().__init__()
+        self.weight_raw = nn.Parameter(torch.randn(out_features, in_features))
+        self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
+
+    def forward(self, x):
+        # Apply ReLU to ensure weights are non-negative
+        weight = F.relu(self.weight_raw)
+        return F.linear(x, weight, self.bias)
+
+class ConvexResNN(nn.Module):
+    def __init__(self, d, m, nTh=2):
+        """
+            ResNet N portion of Phi
+        :param d:   int, dimension of space input (expect inputs to be d+1 for space-time)
+        :param m:   int, hidden dimension
+        :param nTh: int, number of resNet layers , (number of theta layers)
+        """
+        super().__init__()
+
+        if nTh < 2:
+            print("nTh must be an integer >= 2")
+            exit(1)
+
+        self.d = d
+        self.m = m
+        self.nTh = nTh
+        self.layers = nn.ModuleList([])
+        self.z_layers = nn.ModuleList([None])
+
+        self.layers.append(nn.Linear(d + 1, m, bias=True)) # opening layer
+        self.layers.append(nn.Linear(d+1,m, bias=True)) # resnet layers
+
+        self.z_layers.append(Linear_pos_kernel(m,m, bias=True)) # Wz
+
+        for i in range(nTh-2):
+            self.layers.append(copy.deepcopy(self.layers[1]))
+            self.z_layers.append(copy.deepcopy(self.z_layers[1]))
+        self.act = nn.ReLU()
+        self.h = 1.0 / (self.nTh-1) # step size for the ResNet
+
+    def forward(self, x):
+        """
+            N(s;theta). the forward propogation of the ResNet
+        :param x: tensor nex-by-d+1, inputs
+        :return:  tensor nex-by-m,   outputs
+        """
+        z = self.act(self.layers[0].forward(x))
+
+        for i in range(1,self.nTh):
+            z = z + self.act(self.h * self.z_layers[i](z) + self.h * self.layers[i](x))
+        return z
+
+def relu_derivative(x):
+    return (x > 0).to(x.dtype)
 
 class Phi(nn.Module):
-    def __init__(self, nTh, m, d, r=10, alph=[1.0] * 5):
+    def __init__(self, nTh, m, d, r=10, alph=[1.0] * 5, convex=True):
         """
             neural network approximating Phi (see Eq. (9) in our paper)
 
@@ -71,6 +127,7 @@ class Phi(nn.Module):
         self.nTh  = nTh
         self.d    = d
         self.alph = alph
+        self.convex = convex
 
         r = min(r,d+1) # if number of dimensions is smaller than default r, use that
 
@@ -79,7 +136,11 @@ class Phi(nn.Module):
         self.c  = nn.Linear( d+1  , 1  , bias=True)  # b'*[x;t] + c
         self.w  = nn.Linear( m    , 1  , bias=False)
 
-        self.N = ResNN(d, m, nTh=nTh)
+
+        if convex:
+            self.N = ConvexResNN(d, m, nTh=nTh)
+        else:
+            self.N = ResNN(d, m, nTh=nTh)
 
         # set initial values
         self.w.weight.data = torch.ones(self.w.weight.data.shape)
@@ -93,7 +154,6 @@ class Phi(nn.Module):
 
         # force A to be symmetric
         symA = torch.matmul(torch.t(self.A), self.A) # A'A
-
         return self.w( self.N(x)) + 0.5 * torch.sum( torch.matmul(x , symA) * x , dim=1, keepdims=True) + self.c(x)
 
 
@@ -125,12 +185,19 @@ class Phi(nn.Module):
         u.append(N.act(opening)) # u0
         feat = u[0]
 
-        for i in range(1,N.nTh):
-            feat = feat + N.h * N.act(N.layers[i](feat))
-            u.append(feat)
+        if self.convex:
+            for i in range(1,N.nTh):
+                feat= feat + N.act(N.h * N.z_layers[i](feat) + N.h * N.layers[i](x))
+                u.append(feat)
+        else:
+            for i in range(1,N.nTh):
+                feat = feat + N.h * N.act(N.layers[i](feat))
+                u.append(feat)
+
 
         # going to be used more than once
-        tanhopen = torch.tanh(opening) # act'( K_0 * S + b_0 )
+        if self.convex: init = relu_derivative(opening)
+        else: init = torch.tanh(opening) # act'( K_0 * S + b_0 )
 
         # compute gradient and fill z
         for i in range(N.nTh-1,0,-1): # work backwards, placing z_i in appropriate spot
@@ -140,10 +207,14 @@ class Phi(nn.Module):
                 term = z[i+1]
 
             # z_i = z_{i+1} + h K_i' diag(...) z_{i+1}
-            z[i] = term + N.h * torch.mm( N.layers[i].weight.t() , torch.tanh( N.layers[i].forward(u[i-1]) ).t() * term)
+            if self.convex:
+                W_z = F.relu(N.z_layers[i].weight_raw)
+                z[i] = term + N.h * torch.mm( W_z.t() , relu_derivative( N.z_layers[i].forward(u[i-1]) +  N.layers[i].forward(x) ).t() * term)
+            else:
+                z[i] = term + N.h * torch.mm( N.layers[i].weight.t() , torch.tanh( N.layers[i].forward(u[i-1]) ).t() * term)
 
         # z_0 = K_0' diag(...) z_1
-        z[0] = torch.mm( N.layers[0].weight.t() , tanhopen.t() * z[1] )
+        z[0] = torch.mm( N.layers[0].weight.t() , init.t() * z[1] )
         grad = z[0] + torch.mm(symA, x.t() ) + self.c.weight.t()
 
         if justGrad:
@@ -155,32 +226,41 @@ class Phi(nn.Module):
 
         # t_0, the trace of the opening layer
         Kopen = N.layers[0].weight[:,0:d]    # indexed version of Kopen = torch.mm( N.layers[0].weight, E  )
-        temp  = derivTanh(opening.t()) * z[1]
+        temp  = N.act(opening.t()) * z[1]
         trH  = torch.sum(temp.reshape(m, -1, nex) * torch.pow(Kopen.unsqueeze(2), 2), dim=(0, 1)) # trH = t_0
 
         # grad_s u_0 ^ T
-        temp = tanhopen.t()   # act'( K_0 * S + b_0 )
+        temp = init.t()   # act'( K_0 * S + b_0 )
         Jac  = Kopen.unsqueeze(2) * temp.unsqueeze(1) # K_0' * act'( K_0 * S + b_0 )
         # Jac is shape m by d by nex
 
         # t_i, trace of the resNet layers
         # KJ is the K_i^T * grad_s u_{i-1}^T
         for i in range(1,N.nTh):
-            KJ  = torch.mm(N.layers[i].weight , Jac.reshape(m,-1) )
+            if self.convex:
+                W_z = F.relu(N.z_layers[i].weight_raw)
+                KJ  = torch.mm(W_z , Jac.reshape(m,-1) )
+            else:
+                KJ  = torch.mm(N.layers[i].weight , Jac.reshape(m,-1) )
+
             KJ  = KJ.reshape(m,-1,nex)
             if i == N.nTh-1:
                 term = self.w.weight.t()
             else:
                 term = z[i+1]
 
-            temp = N.layers[i].forward(u[i-1]).t() # (K_i * u_{i-1} + b_i)
-            t_i = torch.sum(  ( derivTanh(temp) * term ).reshape(m,-1,nex)  *  torch.pow(KJ,2) ,  dim=(0, 1) )
-            trH  = trH + N.h * t_i  # add t_i to the accumulate trace
-            Jac = Jac + N.h * torch.tanh(temp).reshape(m, -1, nex) * KJ # update Jacobian
+            if self.convex: temp = N.z_layers[i].forward(u[i-1]).t() # (K_i * u_{i-1} + b_i)
+            else: temp = N.layers[i].forward(u[i-1]).t() # (K_i * u_{i-1} + b_i)
 
+            t_i = torch.sum(  ( N.act(temp) * term ).reshape(m,-1,nex)  *  torch.pow(KJ,2) ,  dim=(0, 1) )
+            trH  = trH + N.h * t_i  # add t_i to the accumulate trace
+            Jac = Jac + N.h * N.act(temp).reshape(m, -1, nex) * KJ # update Jacobian
+        # print(grad.t().shape, (trH + torch.trace(symA[0:d,0:d])).shape)
+
+        # print("grad.t() = ", grad.t())
+        # print("trH + torch.trace(symA[0:d,0:d]) = ", trH + torch.trace(symA[0:d,0:d]))
         return grad.t(), trH + torch.trace(symA[0:d,0:d])
         # indexed version of: return grad.t() ,  trH + torch.trace( torch.mm( E.t() , torch.mm(  symA , E) ) )
-
 
 
 if __name__ == "__main__":

@@ -26,33 +26,37 @@ def OTFlowProblem(x, Phi, tspan , nt, stepper="rk4", alph =[1.0,1.0,1.0] ):
     """
     h = (tspan[1]-tspan[0]) / nt
 
+
     # initialize "hidden" vector to propogate with all the additional dimensions for all the ODEs
     z = pad(x, (0, 3, 0, 0), value=0)
+    x1 = torch.randn_like(x)
+    target = x1 - x
 
     tk = tspan[0]
 
     if stepper=='rk4':
         for k in range(nt):
-            z = stepRK4(odefun, z, Phi, alph, tk, tk + h)
+            z = stepRK4(odefun, z, Phi, alph, tk, tk + h, target=target)
             tk += h
     elif stepper=='rk1':
         for k in range(nt):
-            z = stepRK1(odefun, z, Phi, alph, tk, tk + h)
+            z = stepRK1(odefun, z, Phi, alph, tk, tk + h, target=target)
             tk += h
 
     # ASSUME all examples are equally weighted
-    costL  = torch.mean(z[:,-2])
+    
+    costL  = torch.mean(z[:,-3])
     costC  = torch.mean(C(z))
     costR  = torch.mean(z[:,-1])
+
+    # alph[1] = 0 # Remove the unnecessary loss
 
     cs = [costL, costC, costR]
 
     # return dot(cs, alph)  , cs
     return sum(i[0] * i[1] for i in zip(cs, alph)) , cs
 
-
-
-def stepRK4(odefun, z, Phi, alph, t0, t1):
+def stepRK4(odefun, z, Phi, alph, t0, t1, target=None):
     """
         Runge-Kutta 4 integration scheme
     :param odefun: function to apply at every time step
@@ -67,21 +71,21 @@ def stepRK4(odefun, z, Phi, alph, t0, t1):
     h = t1 - t0 # step size
     z0 = z
 
-    K = h * odefun(z0, t0, Phi, alph=alph)
+    K = h * odefun(z0, t0, Phi, alph=alph, target=target)
     z = z0 + (1.0/6.0) * K
 
-    K = h * odefun( z0 + 0.5*K , t0+(h/2) , Phi, alph=alph)
+    K = h * odefun( z0 + 0.5*K, t0+(h/2) , Phi, alph=alph, target=target)
     z += (2.0/6.0) * K
 
-    K = h * odefun( z0 + 0.5*K , t0+(h/2) , Phi, alph=alph)
+    K = h * odefun( z0 + 0.5*K, t0+(h/2) , Phi, alph=alph, target=target)
     z += (2.0/6.0) * K
 
-    K = h * odefun( z0 + K , t0+h , Phi, alph=alph)
+    K = h * odefun( z0 + K , t0+h , Phi, alph=alph, target=target)
     z += (1.0/6.0) * K
 
     return z
 
-def stepRK1(odefun, z, Phi, alph, t0, t1):
+def stepRK1(odefun, z, Phi, alph, t0, t1, target=None):
     """
         Runge-Kutta 1 / Forward Euler integration scheme.  Added for comparison, but we recommend stepRK4.
     :param odefun: function to apply at every time step
@@ -92,7 +96,7 @@ def stepRK1(odefun, z, Phi, alph, t0, t1):
     :param t1:     float, end time
     :return: tensor nex-by-d+4, features at time t1
     """
-    z += (t1 - t0) * odefun(z, t0, Phi, alph=alph)
+    z += (t1 - t0) * odefun(z, t0, Phi, alph=alph, target=target)
     return z
 
 
@@ -136,11 +140,11 @@ def integrate(x, net, tspan , nt, stepper="rk4", alph =[1.0,1.0,1.0], intermedia
     else:
         if stepper == 'rk4':
             for k in range(nt):
-                z = stepRK4(odefun,z,net, alph,tk,tk+h)
+                z = stepRK4(odefun,z, net, alph, tk, tk+h)
                 tk += h
         elif stepper == 'rk1':
             for k in range(nt):
-                z = stepRK1(odefun,z,net, alph,tk,tk+h)
+                z = stepRK1(odefun,z, net, alph, tk, tk+h)
                 tk += h
 
         return z
@@ -158,7 +162,7 @@ def C(z):
     return -( torch.sum(  -0.5 * math.log(2*math.pi) - torch.pow(z[:,0:d],2) / 2  , 1 , keepdims=True ) + l.unsqueeze(1) )
 
 
-def odefun(x, t, net, alph=[1.0,1.0,1.0]):
+def odefun(x, t, net, target = None, alph=[1.0,1.0,1.0]):
     """
     neural ODE combining the characteristics and log-determinant (see Eq. (2)), the transport costs (see Eq. (5)), and
     the HJB regularizer (see Eq. (7)).
@@ -175,13 +179,15 @@ def odefun(x, t, net, alph=[1.0,1.0,1.0]):
 
     z = pad(x[:, :d], (0, 1, 0, 0), value=t) # concatenate with the time t
 
-    gradPhi, trH = net.trHess(z)
-
+    gradPhi, _ = net.trHess(z)
     dx = -(1.0/alph[0]) * gradPhi[:,0:d]
-    dl = -(1.0/alph[0]) * trH.unsqueeze(1)
+    # dl = torch.sum((target-dx)**2,dim=1,keepdims=True)
+    if target is None:
+        dl = torch.zeros_like(torch.norm(dx, dim=1, keepdim=True))
+    else: 
+        dl = torch.norm(target - dx, dim=1, keepdim=True)
+
     dv = 0.5 * torch.sum(torch.pow(dx, 2) , 1 ,keepdims=True)
     dr = torch.abs(  -gradPhi[:,-1].unsqueeze(1) + alph[0] * dv  ) 
     
     return torch.cat( (dx,dl,dv,dr) , 1  )
-
-

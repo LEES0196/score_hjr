@@ -37,7 +37,7 @@ parser.add_argument(
     '--data', choices=['power', 'gas', 'hepmass', 'miniboone', 'bsds300','mnist'], type=str, default='miniboone'
 )
 
-parser.add_argument("--nt"    , type=int, default=6, help="number of time steps")
+parser.add_argument("--nt"    , type=int, default=100, help="number of time steps")
 parser.add_argument("--nt_val", type=int, default=10, help="number of time steps for validation")
 parser.add_argument('--alph'  , type=str, default='1.0,100.0,15.0')
 parser.add_argument('--m'     , type=int, default=def_m)

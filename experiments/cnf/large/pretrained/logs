@@ -1,0 +1,91 @@
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=5000, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=5000, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=5000, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='miniboone', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+test data shape: torch.Size([3648, 43])
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='MNIST', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='mnist', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='mnist', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='mnist', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluate.py
+Namespace(batch_size=128, data='mnist', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluateMnistOTflow.py
+Namespace(batch_size=128, data='mnist', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluateMnistOTflow.py
+Namespace(batch_size=128, data='mnist', gpu=0, long_version=False, nt=18, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluateMnistOTflow.py
+Namespace(alph='1.0,0.0,500.0', batch_size=128, d=128, data='mnist', gpu=0, long_version=False, m=128, nt=8, nt_val=16, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
+/home/lee0196/Homologylee/score_hjr/evaluateMnistOTflow.py
+Namespace(alph='1.0,0.0,500.0', batch_size=128, d=128, data='mnist', gpu=0, long_version=False, m=128, nt=8, nt_val=16, prec='single', resume='experiments/cnf/large/pretrained/pretrained_miniboone_checkpt.pth', save='experiments/cnf/large/pretrained')
+
+ABBREVIATED VERSION
+
