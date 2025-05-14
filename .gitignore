@@ -16,6 +16,7 @@ dist/
 
 # Tests
 .pytest_cache/
+*.png
 wandb/
 
 # Other
